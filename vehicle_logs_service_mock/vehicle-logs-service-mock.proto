@@ -1,0 +1,689 @@
+syntax = "proto3";
+
+package com.toyota.ctp.v1;
+
+import "google/protobuf/timestamp.proto";
+import "location.proto"; // Import Location
+
+option go_package = "gitlab.toyotaconnected.net/tmna-ct/connected-car-platform/pb/vehicle-logs-service-mock";
+
+// Version : 2.0
+ 
+
+/* *************************************************************************************************************
+
+*
+
+* Purpose : 21MM App Data Reporting Service Protobuf for 502 specification.
+
+* Author  : Wouter Dullaert
+
+*          Toyota Motors North America, Inc
+
+*
+
+* **************************************************************************************************************
+
+*                                              REVISION HISTORY
+
+* **************************************************************************************************************
+
+* Release Notes : 9/25/2019
+
+*  Author  : Scott Gaydos
+
+*
+
+*  Henren # [HENREN-CTNA-006]   |    Spec# 502  (version# 2.10)
+
+*  ---------------------------------------------------------------
+
+*  1. In CPAALogMessage (Car Play/Android Auto), removed the Event Type of "Other' and also the Application category field.
+
+*  2. In Trigger (LogSettings), values re-numbered to match with revised spec.
+
+*
+
+*  Henren # [HENREN-CTNA-009]   |    Spec# 502  (version# 2.10)
+
+*  ----------------------------------------------------------------
+
+*  1. ApplicationRuntimeError, ApplicationNotResponding, SystemReset and System Usage sections modified.
+
+*        Added an other repeating structure to capture top 5 memory applications in  addition to top 5 CPU applications.
+
+*  2. SystemReset and SystemUsage sections are matched to the same structure as ApplicationRuntimeError.
+
+*
+
+*  Henren # [HENREN-CTNA-005]   |    Spec# 502  (version# 2.10)
+
+*  -----------------------------------------------------------------
+
+*  1. In LogMessage added entry/type for HMIKeyTrace
+
+*  2. Changed all CPU_Usage and Memory_Usage attributes to Float data type.
+
+*  3. In NavigationLogMessage, removed event types PHONE_START(4) and PHONE_STOP(5).
+
+*  4. In SmartPhoneInformation, removed "string one_app_uuid=1". It is already included in SmartphoneInformationLogMessage.
+
+*  5. enum Messagetype moved out of LogSettings so it can be reused for GetAttachmentParameters.
+
+*  6. In Messagetype, added HMI_KEY_TRACE and re-ordered to match the spec.
+
+*  7. In GetAttachmentParametersRequest, included only the required specific fields instead of the entire LogMessage.
+
+*
+
+* *************************************************************************************************************
+
+*/
+
+/*
+ * LogMessage describes a generic LogMessage. It contains all mandatory
+ * parameters. Every specific message type will augment this type with specific
+ * information
+*/
+message LogMessage {
+  string uuid = 1;       // UUID v4
+  Severity severity = 2; // The severity of the event (see Severity enum)
+  google.protobuf.Timestamp timestamp = 3; // The UTC timestamp at which the event occured
+  string vin = 4;        // The VIN. Identifies the vehicle
+  string hu_serial = 5;  // The ID of the head unit. Identifies the vehicle the log originated from
+  string hu_version = 6; // The version of the HU kernel
+  bool has_attachment = 7; // True if a binary attachment (coredump, screenshot, stacktrace, ...) has been uploaded for this event.
+  string information_key = 8; // The "user agent" (a string available on the HU which encodes certain properties)
+
+  oneof payload {
+    GPSLogMessage gps_log_message = 9;
+    IgnitionLogMessage ignition_log_message = 10;
+    ApplicationRuntimeErrorLogMessage application_runtime_error_log_message = 11;
+    ApplicationNotRespondingErrorLogMessage application_not_responding_error_log_message = 12;
+    SystemResetLogMessage system_reset_log_message = 13;
+    SystemUsageLogMessage system_usage_log_message = 14;
+    PhoneLogMessage phone_log_message = 15;
+    MusicLogMessage music_log_message = 16;
+    CPAALogMessage cpaa_log_message = 17;
+    BluetoothLogMessage bluetooth_log_message = 18;
+    WifiLogMessage wifi_log_message = 19;
+    ApplicationUsageLogMessage application_log_message = 20;
+    IpAppLogMessage ip_app_log_message = 21;
+    NavigationLogMessage navigation_log_message = 22;
+    SmartphoneInformationLogMessage smartphone_information_log_message = 23;
+    HmiKeyTraceLogMessage hmi_Key_Trace = 24;
+  }
+
+  enum Severity {
+    INFO = 0;  // General info, no action required
+    DEBUG = 1; // Useful during development
+    WARN = 2; // Not an immediate problem, but indicates potential future problem
+    ERROR = 3;    // Event that impacted an application
+    CRITICAL = 4; // Event that needs immediate attention
+  }
+}
+
+/*
+ * GPSLogMessage describes GPS related events
+ * Should use INFO severity
+*/
+message GPSLogMessage {
+  EventType event_type = 1;
+
+  enum EventType {
+    LOCK_ACQUIRED = 0; // status indicating that a GPS position lock has been acquired
+    LOCK_LOST = 1; // status indicating that a GPS position lock has been lost
+  }
+}
+
+message IgnitionLogMessage {
+  EventType event_type = 1;
+
+  enum EventType {
+    ACC_ON = 0;
+    ACC_OFF = 1;
+    IG_ON = 2;
+    IG_OFF = 3;
+    DOOR_OPEN = 4;
+    DOOR_CLOSED = 5;
+  }
+}
+
+/*
+ * ScreenInfo describes when a specific screen was shown on the HU
+*/
+message ScreenInfo {
+  string screen_id = 1; // The identifier of the screen
+  google.protobuf.Timestamp screen_timestamp = 2; // Time at which this screen was shown
+}
+
+message Details {
+  repeated ScreenInfo screen_sequence = 1; // The last few screens shown in reverse chronological order (most recent first)
+  float total_memory_usage = 2; // The total percentage of memory used by the HU
+  float total_cpu_usage = 3;      // The total percentage of cpu used by the HU
+  repeated ProcInfo top_five_cpu = 4; // A list of the top five processes by cpu and their current cpu and memory usage
+  repeated ProcInfo top_five_mem = 5; // A list of the top five processes by mem and their current cpu and memory usage
+  float outside_temperature = 6; // The outside temperature in Fahrenheit with 1 decimal precision
+}
+
+message ApplicationDetails {
+  string application_name = 1; // Name identifying the application in question
+  string application_version = 2; // The vesion of the application
+  Details details = 3;
+}
+
+message ApplicationRuntimeErrorLogMessage {
+  EventType event_type = 1;
+  ApplicationDetails application_details = 2;
+
+  enum EventType {
+    RUNTIME_ERROR = 0; // The application has crashed or was killed by the hypervisor
+  }
+}
+
+message ApplicationNotRespondingErrorLogMessage {
+  EventType event_type = 1;
+  ApplicationDetails application_details = 2;
+
+  enum EventType { 
+    APPLICATION_NOT_RESPONDING = 0; 
+  }
+}
+
+message SystemResetLogMessage {
+  EventType event_type = 1;
+  ApplicationDetails application_details = 2;
+
+  enum EventType {
+    SYSTEM_RESET = 0;
+    BOOT_ERROR = 1;
+  }
+}
+
+/*
+ * SystemUsageLogMessage current total system usage
+ * Can be used to alert if the system is under or overloaded
+ * Includes a list process info
+*/
+message SystemUsageLogMessage {
+  EventType event_type = 1;
+  ApplicationDetails application_details = 2;
+
+  enum EventType {
+    MEMORY_ABOVE_THRESHOLD = 0; // Total memory usage dropped below the threshold
+    MEMORY_BELOW_THRESHOLD = 1;                   // Total memory usage increased above the threshold
+    CPU_ABOVE_THRESHOLD = 2; // Total cpu usage dropped below the threshold
+    CPU_BELOW_THRESHOLD = 3; // Total cpu usage increased above the threshold
+  }
+}
+
+/*
+ * ProcInfo describes a running process and the resources it consumes
+*/
+message ProcInfo {
+  string application_name = 1; // The name identifying the application in question
+  string application_version = 2; // The version of the application
+  float cpu_usage = 3;            // The application cpu usage in %
+  float memory_usage = 4;         // The application memory usage in %
+}
+
+/*
+ * PhoneLogMessage describes phone subsystem related events
+*/
+message PhoneLogMessage {
+  EventType event_type = 1;
+  InteractionMode interaction_mode = 2; // How the user interacted with the telephone
+
+  enum EventType {
+    PHONE_CONNECTED = 0;
+    PHONE_DISCONNECTED = 1;
+    INCOMING_CALL = 2;
+    OUTGOING_CALL = 3;
+    CALL_DISCONNECTED = 4; // Both called and received calls
+    MESSAGE_SENT = 5;
+  }
+
+  enum InteractionMode {
+    INTERACTION_MODE_UNKNOWN = 0;
+    HAPTIC = 1; // The user touched the phone
+    VOICE = 2;  // The user used voice to interact with the phone
+  }
+}
+
+/*
+ * MusicLogMessage describes music subsystem related events
+*/
+message MusicLogMessage {
+  EventType event_type = 1;
+  AudioSource audio_source = 2; // The currently selected audio source (regardless of event_type)
+  float radio_frequency = 3; // The current radio station (for applicable event_types, 0 otherwise)
+  string appplication_name = 4; // The name of the IP App or Native app (empty string otherwise)
+  Location location = 5; // Lon and lat should have 1 decimal of accuracy
+
+  enum EventType {
+    AUDIO_PLAYER_ON = 0;
+    AUDIO_PLAYER_OFF = 1;
+    AUDIO_SOURCE_CHANGED = 2;
+    RADIO_FREQUENCY_CHANGED = 3;
+  }
+
+  enum AudioSource {
+    AUDIO_SOURCE_UNKNOWN = 0;
+    FM = 1;
+    AM = 2;
+    SXM = 3;
+    CD = 4;
+    USB = 5;
+    IPOD = 6;
+    IP_APP = 7;
+    NATIVE_APP = 8;
+    BLUETOOTH = 9;
+    CARPLAY = 10;
+    ANDROID_AUTO = 11;
+    AUX = 12;
+    RSE = 13;
+    SDL = 14;
+    OTHER = 15;
+  }
+}
+
+/*
+ * CPAALogMessage describes events related to smartphone mirroring systems
+ * such as Apple Carplay or Android Auto
+*/
+message CPAALogMessage {
+  EventType event_type = 1;
+  ConnectionMode connection_mode = 2;
+
+  enum EventType {
+    CARPLAY_CONNECTED = 0;
+    CARPLAY_DISCONNECTED = 1;
+    ANDROID_AUTO_CONNECTED = 2;
+    ANDROID_AUTO_DISCONNECTED = 3;
+    NAVI_START = 4;
+    NAVI_STOP = 5;
+    AUDIO_START = 6;
+    AUDIO_STOP = 7;
+    PHONE_START = 8;
+    PHONE_STOP = 9;
+    SPEECH_START = 10;
+    SPEECH_STOP = 11;
+  }
+
+  enum ConnectionMode {
+    CONNECTION_MODE_UNKNOWN = 0;
+    USB = 1;
+    WIRELESS = 2;
+  }
+}
+
+/*
+ * BluetoothLogMessage describes events of the bluetooth subsystem
+*/
+message BluetoothLogMessage {
+  EventType event_type = 1;
+  ErrorCode error_code = 2;
+  Phone phone = 3;
+  int32 signal_strength = 4; // Bluetooth signal strength in dBm
+  float outside_temperature = 5; // Outside temperature in Fahrenheit with 1 decimal of precision
+
+  enum EventType {
+    DEVICE_CONNECTED = 0;
+    DEVICE_UNABLE_TO_CONNECT = 1;
+    DEVICE_DISCONNECTED = 2;
+    USER_PROFILE_RECEIVED = 3;
+    PROFILE_HFP = 4;
+    PROFILE_AVP = 5;
+    PROFILE_PBAP = 6;
+    PROFILE_SPP = 7;
+    PROFILE_GAP = 8;
+    PROFILE_GATT = 9;
+    PROFILE_A2DP = 10;
+    PROFILE_AVRCP = 11;
+    PROFILE_OPP = 12;
+    PROFILE_MAP = 13;
+  }
+
+  enum ErrorCode {
+    ERROR_CODE_UNKNOWN = 0;
+    SUCCESS = 1;
+    PAIRING_FAILED = 2;
+    PIN_MISSING = 3;
+    CONNECTION_TIMEOUT = 4;
+    REJECTED_BY_REMOTE_SIDE = 5;
+    OUT_OF_BAND_PAIRING_ERROR = 6;
+    JUST_WORKS_PAIRING_ERROR = 7;
+    SUPPLIER_DEFINED_ERROR = 8;
+  }
+
+  enum Phone {
+    PHONE_UNKNOWN = 0;
+    PRIMARY = 1;
+    SECONDARY = 2;
+  }
+}
+
+/*
+ * WifiLogMessage describes events related to the wifi subsystem
+*/
+message WifiLogMessage {
+  EventType event_type = 1;
+  ErrorCode error_code = 2;
+  int32 signal_strength = 3;      // The current wifi signal strength in dBm
+  WifiStandard wifi_standard = 4; // The current wifi standard being used
+  float outside_temperature = 5; // Outside temperature in Fahrenheit with 1 decimal of precision
+
+  enum EventType {
+    HOTSPOT_ON = 0;
+    HOTSPOT_OFF = 1;
+    DEVICE_CONNECTING_TO_HOTSPOT = 2;
+    DEVICE_DISCONNECTING_TO_HOTSPOT = 3;
+    HU_CONNECTED_TO_AP = 4;
+    HU_DISCONNECTING_FROM_AP = 5;
+  }
+
+  enum ErrorCode {
+    ERROR_CODE_UNKNOWN = 0;
+    SUCCESS = 1;
+    CONNECT_ERROR = 2;
+    AUTHENTICATION_ERROR = 3;
+  }
+
+  enum WifiStandard {
+    WIFI_STANDARD_UNKNOWN = 0;
+    WIFI_802_11B = 1;
+    WIFI_802_11G = 2;
+    WIFI_802_11N = 3;
+    WIFI_802_11A = 4;
+    WIFI_802_11AC = 5;
+    WIFI_802_11AX = 6;
+    UNDETECTABLE = 7;
+  }
+}
+
+/*
+ * ApplicationUsageLogMessage logs when a specific application was used
+*/
+message ApplicationUsageLogMessage {
+  EventType event_type = 1;
+  string application_name = 2; // The name identifying the application recording this message
+  string application_version = 3; // The version of the application
+  string screen_id = 4;
+
+  enum EventType { APPLICATION_USAGE = 0; }
+}
+
+message IpAppLogMessage {
+  EventType event_type = 1;
+  string application_name = 2; // The name identifying the application recording this message
+  string application_version = 3; // The version of the application
+  Reason start_reason = 4;
+
+  enum EventType {
+    APP_LAUNCHED = 0;
+    APP_CLOSED = 1;
+  }
+
+  enum Reason {
+    REASON_UNKNOWN = 0;
+    AUTOMATIC = 1;
+    HMI = 2;
+    VIRTUAL_ASSISTANT = 3;
+    NAVI = 4;
+    GLOBAL_SEARCH = 5;
+  }
+}
+
+message HmiKeyTraceLogMessage {
+  EventType event_type = 1;
+
+  enum EventType { 
+    FILE_UPLOAD_TRIGGER = 0; 
+  }
+}
+
+message NavigationLogMessage {
+  EventType event_type = 1;
+  ConnectionType connection_type = 2;
+  NavigationType navigation_type = 3;
+  Location location = 4; // lon and lat should have at least 2 decimal points of accuracy
+
+  enum EventType {
+    APPLICATION_CONNECTED = 0;
+    APPLICATION_DISCONNECTED = 1;
+    TURN_BY_TURN_START = 2;
+    TURN_BY_TURN_STOP = 3;
+  }
+
+  enum ConnectionType {
+    CONNECTION_TYPE_UNKNOWN = 0;
+    WIFI = 1;
+    DCM = 2;
+  }
+
+  enum NavigationType {
+    NAVIGATION_TYPE_UNKNOWN = 0;
+    TMNA_CLOUD = 1;
+    INCLUDED = 2;
+  }
+}
+
+/*
+ * SmartphoneInformationLogMessage contains SmartphoneInformation when it
+ * is received from OneApp
+*/
+message SmartphoneInformationLogMessage {
+  EventType event_type = 1;
+  string oneapp_uuid = 2;
+  SmartphoneInformation smartphone_information = 3;
+
+  enum EventType {
+    RECEIVED_WIFI = 0;
+    RECEIVED_BT = 1;
+  }
+}
+
+/*
+ * The smartphone information transmitted by OneApp
+*/
+message SmartphoneInformation {
+  oneof attributes {
+    IosAttributes ios_attributes = 1;
+    AndroidAttributes android_attributes = 2;
+  }
+
+  message IosAttributes {
+    string model_version = 1;
+    string device_name = 2;
+    string os_version = 3;
+  }
+
+  message AndroidAttributes {
+    string os_architecture = 1;
+    string kernel_name = 2;
+    string kernel_version = 3;
+    string build_version = 4;
+    string smartphone_model = 5;
+    string android_version = 6;
+    string smartphone_manufacturer = 7;
+    string product = 8;
+  }
+}
+
+/*
+ * GetLogSettingsRequests is the argument for the GetLogSettings rpc
+*/
+message GetLogSettingsRequest {
+  string vin = 1;
+  string hu_serial = 2;       // The ID of the Head Unit.
+  string information_key = 3; // The "user agent" (a string available on the HU which encodes certain properties).
+}
+
+/*
+ * GetLogSettingsResponse is the response of the GetLogSettings rpc
+*/
+message GetLogSettingsResponse { 
+  LogSettings log_settings = 1; 
+}
+
+enum MessageType {
+  GPS_LOG_MESSAGE = 0;      // represents GPSLogMessage messages
+  IGNITION_LOG_MESSAGE = 1; // represents IgnitionLogMessage messages
+  APPLICATION_RUNTIME_ERROR_LOG_MESSAGE = 2; // represents ApplicationRuntimeErrorLogMessage messages
+  APPLICATION_NOT_RESPONDING_ERROR_LOG_MESSAGE = 3; // represents ApplicationNotRespondingErrorLogMessage messages
+  SYSTEM_RESET_LOG_MESSAGE = 4; // represents SystemResetLogMessage messages
+  SYSTEM_USAGE_LOG_MESSAGE = 5; // represents SystemUsageLogMessage messages
+  WIFI_LOG_MESSAGE = 6;         // represents WifiLogMessage messages
+  BLUETOOTH_LOG_MESSAGE = 7;    // represents BluetoothLogMessage messages
+  PHONE_LOG_MESSAGE = 8;        // represents PhoneLogMessage messages
+  MUSIC_LOG_MESSAGE = 9;        // represents MusicLogMessage messages
+  CPAA_LOG_MESSAGE = 10;        // represents CPAALogMessage messages
+  APPLICATION_USAGE_LOG_MESSAGE = 11; // represents ApplicationUsageLogMessage messages
+  HMI_KEY_TRACE_LOG_MESSAGE = 12; // represents HMI key trace settings; only used for settings
+  SIRIUS_XM_LOG_MESSAGE = 13; // represents log settings for Sirius XM (this uses its own log // mechanism, rather than this service)
+  NAVIGATION_LOG_MESSAGE = 14; // represents NavigationLogMessage messages
+  IP_APP_LOG_MESSAGE = 15;     // represents IpAppLogMessage messages
+  SMARTPHONE_INFORMATION_LOG_MESSAGE = 16; // represents SmartphoneInformationLogMessage messages
+}
+
+/*
+ * LogSettings describes the configuration of the HU AppData reporting component
+*/
+message LogSettings {
+  string vin = 1;
+  string hu_serial = 2;
+  float cpu_usage_threshold = 3; // The cpu threshold to use in SystemUsageLogMessages, value can be ignored for all other message types
+  float memory_usage_threshold = 4; // The memory threshold to use in SystemUsageLogMessages, value can be ignored for all other message types
+  repeated Setting settings = 5;  // A list of settings. If it does not contain settings for certain message type, the current settings are kept. 
+                                  // Unknown message types are ignored. HU should initialize all settings in the disabled state.
+
+  /*
+   * Contains the settings for a given log message type
+ */
+  message Setting {
+    MessageType message_type = 1; // The log message type the settings apply to
+    bool enabled = 2;     // Whether logging for this type is enabled or not
+    Trigger trigger = 3;  // The mechanism that decides when logs are uploaded
+    uint64 frequency = 4; // The time, in seconds, between two log pushes. 0 when ON_EVENT is not in use
+    bool upload_screenshot_attachements = 5;
+    bool upload_binary_attachements = 6;
+
+    enum Trigger {
+      DISABLED = 0;  // Do not upload any messages
+      ON_EVENT = 1;  // Upload messages when they occur
+      ON_PERIOD = 2; // Upload messages in regular intervals
+      APPLICATION_BASIS = 3; // The app decides on itself when to upload
+      ON_ACC_ON = 4;         // Upload when ACC ON occurs
+    }
+  }
+}
+
+message UploadLogMessagesResponse { 
+  uint64 record_count = 1;
+}
+
+/*
+ * GetAttachmentParametersRequest is the argument for the
+ * GetAttachmentParameters rpc
+*/
+message GetAttachmentParametersRequest {
+  string uuid = 1;      // uuid v4
+  string vin = 2;       // The VIN. Identifies the vehicle
+  string hu_serial = 3; // The ID of the head unit. Identifies the vehicle the log originated from
+  google.protobuf.Timestamp timestamp = 4; // The UTC timestamp at which the event occured
+  string information_key = 5;
+  MessageType message_type = 6;
+}
+
+/*
+ * GetAttachmentParametersResponse is the response of the
+ * GetAttachmentParameters rpc
+*/
+message GetAttachmentParametersResponse {
+  string attachment_url = 1; // Url the attachment should be posted to. Should
+                             // also be added to the related log message
+}
+
+message MockConfig {
+  string vin = 1;
+  string api = 2;
+  string error_code_str = 3;
+  uint32 error_code = 4;
+}
+
+message SetMockConfigRequest {
+  repeated MockConfig configs = 1;
+}
+
+message SetMockConfigResponse {
+  bool success = 1;
+}
+
+/*
+ * LogService allows a vehicle to push log messages and their attachments to
+ * a server.
+ *
+ * It assumed that the vehicle calls this service, authenticated by a 2-way TLS
+ * connection (established as per gRPC protocol)
+ *
+ * The service can return the following error codes (A list with descriptions
+ * can be found here https://godoc.org/google.golang.org/grpc/codes)
+ * CANCELLED (1) - No Retry
+ * UNKNOWN (2) - No Retry
+ * INVALID_ARGUMENT (3) - No Retry
+ * DEADLINE_EXCEEDED (4) - Retry
+ * NOT_FOUND (5) - No Retry
+ * ALREADY_EXISTS (6) - No Retry
+ * PERMISSION_DENIED (7) - No Retry
+ * RESOURCE_EXHAUSTED (8) - Retry
+ * FAILED_PRECONDITION (9) - No Retry
+ * ABORTED (10) - Retry
+ * OUT_OF_RANGE (11) - No Retry
+ * UNIMPLEMENTED (12) - No Retry
+ * INTERNAL (13) - Retry
+ * UNAVAILABLE (14) - Retry
+ * DATALOSS (15) - Retry
+ * UNAUTHENTICATED (16) - No Retry
+ *
+ * All retries should be a randomized exponential backoff. (gRPC libraries will
+ * already take care of retries for certain error conditions)
+*/
+service LogService {
+  // GetLogSettings retrieves the latest log settings for a VIN. Settings are
+  // small enough that the overhead of doing version management is not justified
+  rpc GetLogSettings(GetLogSettingsRequest) returns (GetLogSettingsResponse);
+
+  // UploadLogMessages pushes logs to the server.
+  //
+  // It can used in a streaming fashion to deliver logs as they happen in real
+  // time, or in a batch mode where the HU periodically calls this rpc and
+  // delivers any messages
+  rpc UploadLogMessages(stream LogMessage) returns (UploadLogMessagesResponse);
+
+  // Get parameters (url and token) to upload a log attachment
+  //
+  // In case the server does not want to receive the attachment it will return
+  // one of the following error codes:
+  //   * PERMISSION_DENIED: in case the upload of binaries is disabled in the
+  //     settings. This should not be retried
+  //   * RESOURCE_EXHAUSTED: in case the client has been spamming the server, or
+  //     the server has capacity issues. The client should start doing a
+  //     randomized exponential backoff retry.
+  rpc GetAttachmentParameters(GetAttachmentParametersRequest) returns (GetAttachmentParametersResponse);
+
+  // MockConfigurator
+  rpc SetMockConfig(SetMockConfigRequest) returns (SetMockConfigResponse);
+}
+
+/*
+ * Uploading an attachment will happen via a valid HTTP PUT operation against
+ * the url retrieved from the GetAttachmentParameters rpc, with the attachment
+ * as the request body. No additional headers or query parameters should be
+ * added. Potential responses can be seen here:
+ * https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPUT.html#RESTObjectPUT-responses
+ *
+ * In case the HU does not upload quick enough, the embedded token will expire
+ * and the server will return 400 or 403.
+ * If this happens the HU should request a new UploadURL and try again, up to 3
+ * times. After 3 times the Upload should be failed permanently
+*/
