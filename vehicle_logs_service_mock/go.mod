@@ -1,4 +1,4 @@
-module vehicle_logs_service_mock
+module github.com/pramineni01/madr/vehicle_logs_service_mock
 
 go 1.14
 
