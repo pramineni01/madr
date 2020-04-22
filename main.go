@@ -4,7 +4,7 @@ import (
 	"log"
 	"net"
 
-	mock "github.com/pramineni/madr/server"
+	mock "github.com/pramineni01/madr/server"
 
 	"google.golang.org/grpc"
 )

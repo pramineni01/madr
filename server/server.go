@@ -7,7 +7,7 @@ import (
 	"google.golang.org/grpc/status"
 	epb "google.golang.org/genproto/googleapis/rpc/errdetails"
 
-	vls "github.com/pramineni/madr/vehicle_logs_service_mock"
+	vls "github.com/pramineni01/madr/vehicle_logs_service_mock"
 )
 
 
